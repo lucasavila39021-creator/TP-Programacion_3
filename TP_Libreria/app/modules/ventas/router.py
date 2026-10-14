@@ -1,21 +1,21 @@
 """Rutas HTTP del módulo ventas."""
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
 from app.modules.ventas import service
+from app.modules.ventas.tasks import avisar_comprobante
 from app.modules.ventas.schemas import VentaCreate, VentaRead, VentaDetalleRead
 
 router = APIRouter(prefix="/ventas", tags=["ventas"])
 
 
 @router.post("/", response_model=VentaDetalleRead, status_code=status.HTTP_201_CREATED)
-async def registrar_venta(venta_in: VentaCreate, session: AsyncSession = Depends(get_session)):
-    # NOTA PARA TIZIANO:
-    # Acá tenés que inyectar BackgroundTasks en los parámetros de la función
-    # y agregar tu aviso en segundo plano justo antes del return.
-    return await service.crear_venta(session, venta_in)
+async def registrar_venta(venta_in: VentaCreate, background_tasks: BackgroundTasks, session: AsyncSession = Depends(get_session)):
+    venta = await service.crear_venta(session, venta_in)
+    background_tasks.add_task(avisar_comprobante, venta.id, venta.cliente.email)
+    return venta
 
 
 @router.get("/", response_model=list[VentaRead])
