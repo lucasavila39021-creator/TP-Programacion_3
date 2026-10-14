@@ -5,7 +5,7 @@ from typing import Sequence
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload
 from sqlmodel import select
 
 from app.modules.clientes.models import Cliente, PerfilCliente
@@ -15,7 +15,7 @@ from app.modules.ventas.models import Venta
 
 async def list_clientes(session: AsyncSession, limit: int, offset: int) -> Sequence[Cliente]:
     consulta = (
-        select(Cliente).options(selectinload(Cliente.perfil))
+        select(Cliente).options(joinedload(Cliente.perfil))
         .order_by(Cliente.id).limit(limit).offset(offset)
     )
     result = await session.execute(consulta)
@@ -25,7 +25,7 @@ async def list_clientes(session: AsyncSession, limit: int, offset: int) -> Seque
 async def get_cliente(session: AsyncSession, cliente_id: int) -> Cliente:
     consulta = (
         select(Cliente).where(Cliente.id == cliente_id)
-        .options(selectinload(Cliente.perfil))
+        .options(joinedload(Cliente.perfil))
     )
     result = await session.execute(consulta)
     cliente = result.scalars().first()
