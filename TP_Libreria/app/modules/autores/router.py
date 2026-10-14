@@ -7,6 +7,8 @@ from app.core.database import get_session
 from app.modules.autores.schemas import AutorCreate, AutorRead, AutorUpdate
 from app.modules.autores import service
 
+from app.modules.libros.schemas import LibroDeAutorRead
+from app.modules.libros.service import list_libros_autor
 
 router = APIRouter(prefix="/autores", tags=["autores"])
 
@@ -41,3 +43,9 @@ async def update(
 async def delete(autor_id: int, session: AsyncSession = Depends(get_session)):
     autor = await service.get_autor(session, autor_id)
     await service.delete_autor(session, autor)
+
+
+@router.get("/{autor_id}/libros", response_model=list[LibroDeAutorRead])
+async def libros_del_autor(autor_id: int, limit: int = Query(20, ge=1, le=100),
+                           offset: int = Query(0, ge=0), session: AsyncSession = Depends(get_session)):
+    return await list_libros_autor(session, autor_id, limit, offset)

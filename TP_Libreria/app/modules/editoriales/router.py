@@ -11,6 +11,9 @@ from app.modules.editoriales.schemas import (
     EditorialUpdate,
 )
 
+from app.modules.libros.schemas import LibroRead
+from app.modules.libros.service import list_libros
+
 router = APIRouter(prefix="/editoriales", tags=["editoriales"])
 
 
@@ -45,3 +48,10 @@ async def update(
 @router.delete("/{editorial_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete(editorial_id: int, session: AsyncSession = Depends(get_session)):
     await service.delete_editorial(session, editorial_id)
+
+
+@router.get("/{editorial_id}/libros", response_model=list[LibroRead])
+async def libros_del_editorial(editorial_id: int, limit: int = Query(20, ge=1, le=100),
+                              offset: int = Query(0, ge=0), session: AsyncSession = Depends(get_session)):
+    await service.get_editorial(session, editorial_id)
+    return await list_libros(session, limit, offset, editorial_id=editorial_id)
