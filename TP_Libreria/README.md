@@ -39,7 +39,7 @@ Pasos para Windows con Git Bash (Python 3.12 o superior y PostgreSQL instalados)
    uvicorn app.main:app --reload --reload-dir app
    ```
 9. Abrí http://localhost:8000/docs
-10. Carga de datos iniciales: **pendiente** (el script todavía no está en el repo).
+10. Sobre una base recién creada y migrada, ejecutá `python -m scripts.seed` antes de probar los endpoints. El script no borra datos y rechaza una base con registros. Deja cliente 1 con perfil, libros 1 y 2, y venta 1 (total `71000.00`) para los casos `.http`.
 
 ## Ejercicio 1 — Proyecto, conexión y ciclo de vida (10 pts)
 
@@ -68,34 +68,43 @@ Pasos para Windows con Git Bash (Python 3.12 o superior y PostgreSQL instalados)
 
 ## Ejercicio 4 — Contratos y CRUD (15 pts)
 
-- [ ] DTOs por módulo (`Create` sin `id`, `Update` parcial con `exclude_unset`, `Read`)
+- [X] DTOs por módulo (`Create` sin `id`, `Update` parcial con `exclude_unset`, `Read`)
   - [X] `editoriales` y `generos`: `Create` / `Update` de entrada y `Read` de salida, con `min_length` / `max_length`; se agregó `pais` a los DTOs de editorial
-  - [ ] `autores`, `libros`, `clientes`, `ventas` (siguen siendo esqueletos provisorios)
-- [ ] Códigos 201/404/409/422, `IntegrityError` → 409 con mensaje propio (RN-12)
+  - [X] `autores`, `libros`, `clientes`, `ventas`: contratos de entrada y salida completos
+- [X] Códigos 201/404/409/422, `IntegrityError` → 409 con mensaje propio (RN-12)
   - [X] `editoriales` y `generos`: 404 desde el service ("Editorial no encontrada" / "Género no encontrado") y 409 desde `_guardar()`, que atrapa el `IntegrityError` del commit, hace rollback y responde con mensaje propio, sin consulta previa de unicidad
-  - [ ] El resto de los módulos
-- [ ] Paginación `limit`/`offset` (RN-10) y filtro de título con parámetro ligado (RN-11)
+  - [X] El resto de los módulos: errores de integridad traducidos a mensajes propios
+- [X] Paginación `limit`/`offset` (RN-10) y filtro de título con parámetro ligado (RN-11)
   - [X] `GET /editoriales/` y `GET /generos/` con `limit` (1 a 100, por defecto 20) y `offset` (desde 0) usando `Query`; fuera de rango da 422; la consulta usa `order_by(id)` para que las páginas sean estables
-  - [ ] Paginación en los otros módulos y filtro por título en libros (RN-11)
-- [X] Rutas con barra final (`/editoriales/`, `/generos/`) como en la consigna; los demás módulos siguen con `""` y responden 307
-- [ ] `GET /editoriales/{id}/libros` y `GET /generos/{id}/libros` (dependen del DTO de libros)
+  - [X] Paginación en los otros módulos y filtros por título y género en libros (RN-11)
+- [X] Rutas de colección con barra final en todos los módulos, como en la consigna
+- [X] `GET /editoriales/{id}/libros`, `GET /generos/{id}/libros` y `GET /autores/{id}/libros` (con rol y orden)
 
 ## Ejercicio 5 — Altas con relaciones: ids y datos (20 pts)
 
-- [ ] Alta de libro con `editorial_id`, `genero_id` y `autores` (`autor_id` + `rol` + `orden`); FK inexistente → 409 sin `if` previo
-- [ ] Alta de venta con `cliente_id` + `renglones` anidados; precio copiado del libro y total calculado por el servidor (RN-04 a RN-07); sin `PATCH` de ventas (RN-08)
+- [X] Alta de libro con `editorial_id`, `genero_id` y `autores` (`autor_id` + `rol` + `orden`); FK inexistente → 409 sin `if` previo
+- [X] Alta de venta con `cliente_id` + `renglones` anidados; precio copiado del libro y total calculado por el servidor (RN-04 a RN-07); sin `PATCH` de ventas (RN-08)
 
 ## Ejercicio 6 — Lecturas sin N+1 (10 pts)
 
-- [ ] Carga anticipada (`joinedload` a uno, `selectinload` a colecciones); detalle de libro y de venta en N° fijo de consultas; cero carga perezosa
+- [X] Carga anticipada (`joinedload` a uno, `selectinload` a colecciones); detalle de libro y de venta en N° fijo de consultas; cero carga perezosa
 
 ## Ejercicio 7 — Asincronía sin bloqueos (10 pts)
 
-- [ ] Handlers `async def` sin llamadas bloqueantes; aviso de comprobante con `BackgroundTasks` (`asyncio.sleep(0.5)` + log)
+- [X] Handlers `async def` sin llamadas bloqueantes; aviso de comprobante con `BackgroundTasks` (`asyncio.sleep(0.5)` + log)
 
 ## Entrega
 
 - [X] Archivos `TP_Libreria/test/` (en la raíz del proyecto, al nivel de `app/` y `migrations/`) C-01 a C-08 registrados, cada uno con su resultado esperado en comentarios
-- [ ] Script de datos iniciales + ejecución de C-01 a C-08 contra los endpoints (requiere Fase 2)
-- [ ] Evidencia C-07 (consultas en consola del detalle de libro y venta)
-- [ ] Verificación final: `alembic upgrade head` sobre base vacía, app que levanta, `README` con pasos desde cero
+- [X] Script de datos iniciales `scripts/seed.py` y pruebas de C-01 a C-08 contra los endpoints
+- [X] Evidencia C-07 en `docs/evidencia-C-07.txt`: 2 SELECT por detalle de libro y venta, con una o varias relaciones
+- [X] Verificación final: `alembic upgrade head` sobre base vacía, app que levanta, `README` con pasos desde cero
+
+
+## Verificación y notas de integración
+
+- Los archivos originales `test/C-01.http` a `test/C-08.http` se conservan sin cambios.
+- Verificado el 14/10/2026: casos C-01 a C-08 originales aprobados en PostgreSQL 16.15, upgrade desde cero, downgrade/upgrade, `alembic check`, seed y arranque/cierre de la API.
+- Para observar C-07: activar `DEBUG=true`, iniciar la API y ejecutar `test/C-07.http`; las consultas se muestran en la consola. La evidencia guardada corresponde a la verificación realizada el 14/10/2026.
+- Autor recibe `nombre` y `nacionalidad`. Libro recibe `isbn`, `titulo`, `precio`, `stock`, `editorial_id`, `genero_id` opcional y `autores` con `autor_id`, `rol`, `orden`. PATCH conserva lo omitido; si se envía `autores`, reemplaza esa lista atómicamente. Sólo `genero_id` admite null.
+- Se mantienen los modelos, migraciones y servicios de los demás módulos. En Editoriales y Géneros sólo se agregaron los listados de libros; en Ventas se agregó el aviso posterior a la respuesta, sin cambiar el cálculo de Lucas.
