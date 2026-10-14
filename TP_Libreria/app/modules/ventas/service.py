@@ -1,92 +1,78 @@
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import select
-from fastapi import HTTPException
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import selectinload, joinedload
-from datetime import datetime, timezone
-from typing import List
+"""Lógica del módulo ventas y traducción de errores de la base."""
 
-from app.modules.ventas.models import Venta, RenglonVenta
+from decimal import Decimal
+from typing import Sequence
+
+from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload, selectinload
+from sqlmodel import select
+
+from app.modules.libros.models import Libro
+from app.modules.ventas.models import RenglonVenta, Venta
 from app.modules.ventas.schemas import VentaCreate
-# Importamos el modelo de tu compañero para poder leer los precios reales
-from app.modules.libros.models import Libro 
+
 
 async def crear_venta(session: AsyncSession, venta_in: VentaCreate) -> Venta:
-    # 1. Extraer los IDs de los libros que el cliente quiere comprar
-    libros_ids = [r.libro_id for r in venta_in.renglones]
-    
-    # 2. Ir a buscar esos libros a la base de datos (ignoramos cualquier precio del cliente)
-    stmt = select(Libro).where(Libro.id.in_(libros_ids))
-    resultado = await session.execute(stmt)
+    libros_ids = [renglon.libro_id for renglon in venta_in.renglones]
+    consulta = select(Libro).where(Libro.id.in_(libros_ids))
+    resultado = await session.execute(consulta)
     libros_db = {libro.id: libro for libro in resultado.scalars().all()}
-    
-    # 3. Validar que no nos estén mandando un libro fantasma
     if len(libros_db) != len(libros_ids):
         raise HTTPException(
-            status_code=409, 
-            detail="Error: Uno o más libros solicitados no existen en el catálogo."
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Uno o más libros solicitados no existen en el catálogo",
         )
-        
-    # 4. Procesar renglones y calcular la matemática exacta
+
     renglones_nuevos = []
-    total_venta = 0
-    
+    total_venta = Decimal("0")
     for renglon_in in venta_in.renglones:
-        libro_real = libros_db[renglon_in.libro_id]
-        precio_real = libro_real.precio
-        
-        # Armamos el renglón copiando el precio oficial de la base de datos
-        nuevo_renglon = RenglonVenta(
+        precio_real = libros_db[renglon_in.libro_id].precio
+        renglones_nuevos.append(RenglonVenta(
             libro_id=renglon_in.libro_id,
             cantidad=renglon_in.cantidad,
-            precio_unitario=precio_real
-        )
-        renglones_nuevos.append(nuevo_renglon)
-        
-        # Sumamos al total matemático
-        total_venta += (precio_real * renglon_in.cantidad)
-        
-    # 5. Instanciar la venta final
+            precio_unitario=precio_real,
+        ))
+        total_venta += precio_real * renglon_in.cantidad
+
     nueva_venta = Venta(
         cliente_id=venta_in.cliente_id,
-        fecha=datetime.now(timezone.utc),
         total=total_venta,
-        renglones=renglones_nuevos
+        renglones=renglones_nuevos,
     )
-    
-    # 6. Guardar todo como una única transacción
     session.add(nueva_venta)
-    try:
-        await session.commit()
-        await session.refresh(nueva_venta)
-        return nueva_venta
-    except IntegrityError:
-        await session.rollback()
-        # Si falla por un cliente_id que no existe, devolvemos 409 según la consigna C-05
-        raise HTTPException(
-            status_code=409, 
-            detail="Error de integridad: el cliente no existe."
-        )
+    await _guardar(session, "No se pudo registrar la venta: el cliente no existe o los datos son inválidos")
+    # Volvemos a consultar para devolver las relaciones cargadas después del commit.
+    return await obtener_venta_por_id(session, nueva_venta.id)
 
-async def obtener_ventas(session: AsyncSession, limit: int = 20, offset: int = 0) -> List[Venta]:
-    # RN-10: Listado paginado
-    stmt = select(Venta).offset(offset).limit(limit)
-    resultado = await session.execute(stmt)
+
+async def obtener_ventas(session: AsyncSession, limit: int = 20, offset: int = 0) -> Sequence[Venta]:
+    consulta = select(Venta).order_by(Venta.id).limit(limit).offset(offset)
+    resultado = await session.execute(consulta)
     return resultado.scalars().all()
 
+
 async def obtener_venta_por_id(session: AsyncSession, venta_id: int) -> Venta:
-    # Ejercicio 6: Carga anticipada sin N+1
-    stmt = (
-        select(Venta)
-        .where(Venta.id == venta_id)
+    consulta = (
+        select(Venta).where(Venta.id == venta_id)
         .options(
             joinedload(Venta.cliente),
-            selectinload(Venta.renglones)
+            selectinload(Venta.renglones).joinedload(RenglonVenta.libro),
         )
     )
-    resultado = await session.execute(stmt)
+    resultado = await session.execute(consulta)
     venta = resultado.scalars().first()
-    
-    if not venta:
-        raise HTTPException(status_code=404, detail="Venta no encontrada")
+    if venta is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Venta no encontrada")
     return venta
+
+
+async def _guardar(session: AsyncSession, mensaje_conflicto: str) -> None:
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=mensaje_conflicto
+        ) from None
