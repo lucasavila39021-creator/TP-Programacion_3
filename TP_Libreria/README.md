@@ -22,7 +22,7 @@ Pasos para Windows con Git Bash (Python 3.12 o superior y PostgreSQL instalados)
    ```bash
    pip install -r requirements.txt
    ```
-5. Copiá el archivo de entorno y completá `DATABASE_URL` con tu contraseña de PostgreSQL. Opcional: agregá `DEBUG=true` para ver las consultas SQL en la consola.
+5. Copiá el archivo de entorno y completá `DATABASE_URL` con tu contraseña de PostgreSQL. La variable es obligatoria: si falta o está vacía, la aplicación y Alembic muestran un error de configuración. Opcional: agregá `DEBUG=true` para ver las consultas SQL en la consola.
    ```bash
    cp .env.example .env
    ```
