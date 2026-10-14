@@ -14,7 +14,8 @@ from app.modules.generos.router import router as generos_router
 from app.modules.health.router import router as health_router
 from app.modules.libros.router import router as libros_router
 from app.modules.ventas.router import router as ventas_router
-
+from app.modules.clientes.router import router as clientes_router
+from app.modules.ventas.router import router as ventas_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -33,7 +34,8 @@ app.include_router(autores_router)
 app.include_router(libros_router)
 app.include_router(clientes_router)
 app.include_router(ventas_router)
-
+app.include_router(clientes_router)
+app.include_router(ventas_router)
 
 @app.get("/", tags=["root"])
 async def root() -> dict[str, str]:
