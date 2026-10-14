@@ -2,7 +2,7 @@ from app.modules.ventas.models import Venta, RenglonVenta
 from app.modules.ventas.schemas import VentaCreate
 from sqlalchemy.orm import selectinload, joinedload
 from typing import List
-# Importamos el modelo de tu compañero para poder leer los precios reales
+
 from app.modules.libros.models import Libro 
 
 async def crear_venta(session: AsyncSession, venta_in: VentaCreate) -> Venta:
