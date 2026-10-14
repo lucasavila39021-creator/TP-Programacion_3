@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_session
-
+from typing import List
+from app.modules.ventas.schemas import VentaCreate, VentaRead, VentaDetalleRead
+from app.modules.ventas.service import crear_venta, obtener_ventas, obtener_venta_por_id
 from app.modules.ventas.schemas import VentaCreate, VentaRead
 from app.modules.ventas.service import crear_venta
 

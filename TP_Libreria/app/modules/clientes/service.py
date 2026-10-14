@@ -1,11 +1,7 @@
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import select
-from fastapi import HTTPException
-from sqlalchemy.exc import IntegrityError
-from datetime import datetime, timezone
-
 from app.modules.ventas.models import Venta, RenglonVenta
 from app.modules.ventas.schemas import VentaCreate
+from sqlalchemy.orm import selectinload, joinedload
+from typing import List
 # Importamos el modelo de tu compañero para poder leer los precios reales
 from app.modules.libros.models import Libro 
 
@@ -65,3 +61,26 @@ async def crear_venta(session: AsyncSession, venta_in: VentaCreate) -> Venta:
             status_code=409, 
             detail="Error de integridad: el cliente no existe."
         )
+
+async def obtener_ventas(session: AsyncSession, limit: int = 20, offset: int = 0) -> List[Venta]:
+    # RN-10: Listado paginado
+    stmt = select(Venta).offset(offset).limit(limit)
+    resultado = await session.execute(stmt)
+    return resultado.scalars().all()
+
+async def obtener_venta_por_id(session: AsyncSession, venta_id: int) -> Venta:
+    # Ejercicio 6: Carga anticipada sin N+1
+    stmt = (
+        select(Venta)
+        .where(Venta.id == venta_id)
+        .options(
+            joinedload(Venta.cliente),
+            selectinload(Venta.renglones)
+        )
+    )
+    resultado = await session.execute(stmt)
+    venta = resultado.scalars().first()
+    
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+    return venta
